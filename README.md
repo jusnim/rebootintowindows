@@ -1,8 +1,8 @@
 **This is a fork of https://github.com/UbayGD/reboottouefi**
 
-# Reboot into Windows
+# Reboot into Windows with GRUB
 
-This is a small Gnome extension that adds the ability to reboot directly into Windows.
+This is a small Gnome extension that adds the ability to reboot directly into Windows with GRUB.
 
 ![Screenshot of the extension option in the Gnome 46 menu](images/gnome_46.png)
 
