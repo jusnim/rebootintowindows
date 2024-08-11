@@ -1,5 +1,5 @@
 {
-  "name": "reboot-to-uefi",
+  "name": "reboot-into-Windows",
   "version": "1.0.0",
   "description": "This is a small Gnome extension that adds the ability to reboot directly to the UEFI.",
   "type": "module",
@@ -8,12 +8,12 @@
     "type": "git",
     "url": "git+https://github.com/UbayGD/reboottouefi.git"
   },
-  "author": "UbayGD <aubay.glezdiaz@gmail.com>",
+  "author": "Jolie <jolie@nimz.cool>",
   "license": "GPL-3.0-only",
   "bugs": {
-    "url": "https://github.com/UbayGD/reboottouefi/issues"
+    "url": "https://github.com/jusnim/rebootintowindows/issues"
   },
-  "homepage": "https://github.com/UbayGD/reboottouefi",
+  "homepage": "https://github.com/jusnim/rebootintowindows",
   "sideEffects": false,
   "devDependencies": {
     "eslint": "^10.8.1",

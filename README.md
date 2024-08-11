@@ -1,14 +1,10 @@
-# Reboot to UEFI
+**This is a fork of https://github.com/UbayGD/reboottouefi**
 
-This is a small Gnome extension that adds the ability to reboot directly to the UEFI.
+# Reboot into Windows
+
+This is a small Gnome extension that adds the ability to reboot directly into Windows.
 
 ![Screenshot of the extension option in the Gnome 46 menu](images/gnome_46.png)
-
-<br>
-
-# Gnome Extensions
-
-This extension is available in [GNOME Extensions](https://extensions.gnome.org/extension/5105/reboottouefi/).
 
 <br>
 

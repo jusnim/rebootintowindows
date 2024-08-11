@@ -1,9 +1,9 @@
 {
-  "name": "RebootToUEFI",
-  "description": "Reboot system into UEFI",
+  "name": "RebootIntoWindows",
+  "description": "Reboot system into Windows",
   "license": "GPLv3",
-  "uuid": "reboottouefi@ubaygd.com",
-  "url": "https://github.com/UbayGD/reboottouefi",
+  "uuid": "rebootintowindows@nimz.cool",
+  "url": "https://github.com/jusnim/rebootintowindows",
   "shell-version": ["45", "46", "47", "48", "49", "50"],
-  "gettext-domain": "reboottouefi@ubaygd.com"
+  "gettext-domain": "rebootintowindows@nimz.cool"
 }

@@ -18,7 +18,7 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 
 #: extension.js:63,122
-msgid "Restart to UEFI"
+msgid "Restart into Windows"
 msgstr ""
 
 #: extension.js:103

@@ -1,4 +1,4 @@
-# Reboot to UEFI GNOME Extension
+# Reboot to Windows GNOME Extension
 # Steven Seifried <gitlab@canox.net>, 2022.
 #
 msgid ""
@@ -17,5 +17,5 @@ msgstr ""
 "X-Generator: Gtranslator 40.0\n"
 
 #: extension.js:58
-msgid "Restart to UEFI"
-msgstr "Neustart ins UEFI Setup"
+msgid "Restart to Windows"
+msgstr "Neustart in Windows"

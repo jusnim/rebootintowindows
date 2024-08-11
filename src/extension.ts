@@ -26,6 +26,8 @@ import Pango from 'gi://Pango';
 import { panel } from 'resource:///org/gnome/shell/ui/main.js';
 import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
 import * as ModalDialog from 'resource:///org/gnome/shell/ui/modalDialog.js';
+
+
 import {
   Extension,
   gettext as _,
@@ -33,20 +35,18 @@ import {
 
 const ManagerInterface: string = `<node>
   <interface name="org.freedesktop.login1.Manager">
-    <method name="SetRebootToFirmwareSetup">
-      <arg type="b" direction="in"/>
-    </method>
     <method name="Reboot">
       <arg type="b" direction="in"/>
     </method>
   </interface>
 </node>`;
 const Manager = Gio.DBusProxy.makeProxyWrapper(ManagerInterface);
+const GRUB_CONFIG_PATH = "/boot/grub/grub.cfg"
 
-export default class RebootToUefiExtension extends Extension {
+export default class RebootToWindowsExtension extends Extension {
   private menu: any;
   private proxy!: any | null;
-  private rebootToUefiItem!: PopupMenu.PopupMenuItem | null;
+  private rebootToWindowsItem!: PopupMenu.PopupMenuItem | null;
   private counter!: number;
   private seconds!: number;
   private counterIntervalId!: GLib.Source;
@@ -67,11 +67,11 @@ export default class RebootToUefiExtension extends Extension {
       '/org/freedesktop/login1',
     );
 
-    this.rebootToUefiItem = new PopupMenu.PopupMenuItem(
-      `${_('Restart to UEFI')}...`,
+    this.rebootToWindowsItem = new PopupMenu.PopupMenuItem(
+      `${_('Restart to Windows')}...`,
     );
 
-    this.rebootToUefiItem.connect('activate', () => {
+    this.rebootToWindowsItem.connect('activate', () => {
       this.counter = 60;
       this.seconds = this.counter;
 
@@ -91,7 +91,7 @@ export default class RebootToUefiExtension extends Extension {
       }, 1000);
     });
 
-    this.menu.addMenuItem(this.rebootToUefiItem, 2);
+    this.menu.addMenuItem(this.rebootToWindowsItem, 2);
   }
 
   private queueModifySystemItem(): void {
@@ -113,8 +113,8 @@ export default class RebootToUefiExtension extends Extension {
 
   disable() {
     this.clearIntervals();
-    this.rebootToUefiItem?.destroy();
-    this.rebootToUefiItem = null;
+    this.rebootToWindowsItem?.destroy();
+    this.rebootToWindowsItem = null;
     this.proxy = null;
     if (this.sourceId) {
       GLib.Source.remove(this.sourceId);
@@ -122,9 +122,32 @@ export default class RebootToUefiExtension extends Extension {
     }
   }
 
-  private reboot(): void {
-    this.proxy?.SetRebootToFirmwareSetupRemote(true);
-    this.proxy?.RebootRemote(false);
+  private get_windows_grub_entry(file_path : string) {
+    const file = Gio.File.new_for_path(file_path);
+
+    let boot_entry = ""
+    let content = file.load_contents(null)[1]
+    const contentsText = new TextDecoder('utf-8').decode(content);
+    const arr = contentsText.split(/\r?\n/);
+
+    let menu_pattern = new RegExp("^\\s*menuentry ['\"]([^'\"]*)['\"]")
+
+    arr.forEach((line : string) => {
+      let matches = menu_pattern.exec(line) 
+      if (matches != null && ! matches[1].toLowerCase().search("windows")){ 
+          boot_entry = matches[1]
+      }   
+    }
+    );
+    return boot_entry
+}
+
+  private async reboot(){
+    let windows_grub_entry = this.get_windows_grub_entry(GRUB_CONFIG_PATH)
+    const [, argv] = GLib.shell_parse_argv(`pkexec grub-reboot "${windows_grub_entry}"`)
+    const proc = Gio.Subprocess.new(argv, Gio.SubprocessFlags.NONE)
+    await proc.wait_check_async(null);
+    this.proxy?.RebootRemote(true);    
   }
 
   private buildDialog(): ModalDialog.ModalDialog {
@@ -150,7 +173,7 @@ export default class RebootToUefiExtension extends Extension {
     ]);
 
     const dialogTitle = new St.Label({
-      text: _('Restart to UEFI'),
+      text: _('Restart into Windows'),
       // style_class: 'dialog-title' // TODO investigate why css classes are not working
       style: 'font-weight: bold;font-size:18px',
     });
