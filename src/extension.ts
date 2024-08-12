@@ -33,14 +33,6 @@ import {
   gettext as _,
 } from 'resource:///org/gnome/shell/extensions/extension.js';
 
-const ManagerInterface: string = `<node>
-  <interface name="org.freedesktop.login1.Manager">
-    <method name="Reboot">
-      <arg type="b" direction="in"/>
-    </method>
-  </interface>
-</node>`;
-const Manager = Gio.DBusProxy.makeProxyWrapper(ManagerInterface);
 const GRUB_CONFIG_PATH = "/boot/grub/grub.cfg"
 
 export default class RebootToWindowsExtension extends Extension {
@@ -52,6 +44,7 @@ export default class RebootToWindowsExtension extends Extension {
   private counterIntervalId!: GLib.Source;
   private messageIntervalId!: GLib.Source;
   private sourceId!: number | null;
+  private manager!: any
 
   constructor(metadata: any) {
     super(metadata);
@@ -61,7 +54,10 @@ export default class RebootToWindowsExtension extends Extension {
     this.menu =
       panel.statusArea.quickSettings?._system?.quickSettingsItems[0].menu;
 
-    this.proxy = Manager(
+    // if(this.manager == null){
+    //   return
+    // }
+    this.proxy = this.manager(
       Gio.DBus.system,
       'org.freedesktop.login1',
       '/org/freedesktop/login1',
@@ -104,6 +100,14 @@ export default class RebootToWindowsExtension extends Extension {
   }
 
   enable() {
+  const ManagerInterface: string = `<node>
+  <interface name="org.freedesktop.login1.Manager">
+    <method name="Reboot">
+      <arg type="b" direction="in"/>
+    </method>
+  </interface>
+  </node>`;
+  this.manager = Gio.DBusProxy.makeProxyWrapper(ManagerInterface);
     if (!panel.statusArea.quickSettings?._system) {
       this.queueModifySystemItem();
     } else {

@@ -1,6 +1,6 @@
 {
   "name": "RebootIntoWindows",
-  "description": "Reboot system into Windows",
+  "description": "Reboot system into Windows\n\nIt is a fork of RebootToUEFI.",
   "license": "GPLv3",
   "uuid": "rebootintowindows@nimz.cool",
   "url": "https://github.com/jusnim/rebootintowindows",
