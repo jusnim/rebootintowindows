@@ -116,6 +116,7 @@ export default class RebootToWindowsExtension extends Extension {
   }
 
   disable() {
+    this.manager = null
     this.clearIntervals();
     this.rebootToWindowsItem?.destroy();
     this.rebootToWindowsItem = null;
