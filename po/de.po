@@ -1,21 +1,33 @@
-# Reboot to Windows GNOME Extension
-# Steven Seifried <gitlab@canox.net>, 2022.
+# GERMAN TRANSLATION.
+# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the PACKAGE package.
+# ALBANO BATTISTELLA <ALBANOBATTISTELLA@GMAIL.COM>, 2024.
 #
 msgid ""
 msgstr ""
-"Project-Id-Version: 1.0\n"
+"Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2022-08-05 12:15+0100\n"
-"PO-Revision-Date: 2022-08-05 12:15+0100\n"
-"Last-Translator: Steven Seifried <gitlab@canox.net>\n"
-"Language-Team: German - Germany <gitlab@canox.net>\n"
+"POT-Creation-Date: 2022-05-29 19:54+0200\n"
+"PO-Revision-Date: 2024-09-03 23:06+0200\n"
+"Last-Translator: Jolie Nimz <jolie@nimz.cool>\n"
+"Language-Team: German <jolie@nimz.cool>\n"
 "Language: de_DE\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Plural-Forms: nplurals=2; plural=(n != 1)\n"
-"X-Generator: Gtranslator 40.0\n"
 
-#: extension.js:58
-msgid "Restart to Windows"
-msgstr "Neustart in Windows"
+#: extension.js:63,122
+msgid "Restart into Windows"
+msgstr "In Windows neu starten"
+
+#: extension.js:103
+msgid "Cancel"
+msgstr "Abbrechen"
+
+#: extension.js:112
+msgid "Restart"
+msgstr "Neustart"
+
+#: extension.js:154
+msgid "The system will restart automatically in %d seconds."
+msgstr "Das System startet sich in %d Sekunden neu."
