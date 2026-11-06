@@ -132,27 +132,32 @@ export default class RebootToWindowsExtension extends Extension {
     const [, stdout, , status] = GLib.spawn_command_line_sync(`pkexec cat "${file_path}"`);
     
     if (status !== 0 || !stdout) {
+      console.error(`RebootToWindows: Failed to read ${file_path} or file is empty.`);
       return "";
     }
 
-    const contentsText = new TextDecoder('utf-8').decode(stdout);
-    const arr = contentsText.split(/\r?\n/);
-    let boot_entry = "";
-    const menu_pattern = new RegExp("^\\s*menuentry ['\"]([^'\"]*)['\"]");
-
-    for (const line of arr) {
-      const matches = menu_pattern.exec(line);
-      if (matches != null && matches[1].toLowerCase().includes("windows")) {
-        boot_entry = matches[1];
-        break;
+      const contentsText = new TextDecoder('utf-8').decode(stdout);
+      const arr = contentsText.split(/\r?\n/);
+      
+      for (const line of arr) {
+        const trimmed = line.trim();
+        if (trimmed.includes("menuentry") && trimmed.toLowerCase().includes("windows")) {
+          const firstQuote = trimmed.indexOf("'") !== -1 ? trimmed.indexOf("'") : trimmed.indexOf('"');
+          if (firstQuote !== -1) {
+            const secondQuote = trimmed.indexOf(trimmed[firstQuote], firstQuote + 1);
+            if (secondQuote !== -1) {
+              return trimmed.substring(firstQuote + 1, secondQuote);
+            }
+          }
+        }
       }
+
+      return "";
+    } catch (e) {
+      console.error(`RebootToWindows: Error reading ${file_path}`, e);
+      return "";
     }
-    return boot_entry;
-  } catch (e) {
-    console.error(`RebootToWindows: Error reading ${file_path}`, e);
-    return "";
   }
-}
 
  private async reboot() {
     try {
