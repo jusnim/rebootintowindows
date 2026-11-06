@@ -147,17 +147,26 @@ export default class RebootToWindowsExtension extends Extension {
     return boot_entry
 }
 
-  private async reboot(){
-    let windows_grub_entry = this.get_windows_grub_entry(GRUB_CONFIG_PATH)
-    const [, argv] = GLib.shell_parse_argv(`pkexec grub-reboot "${windows_grub_entry}"`)
+  private async reboot() {
+    try {
+      let windows_grub_entry = this.get_windows_grub_entry(GRUB_CONFIG_PATH);
+      const [, argv] = GLib.shell_parse_argv(`pkexec grub-reboot "${windows_grub_entry}"`);
 
-  if (!argv) {
+      if (!argv) {
+        throw new Error(`Could not parse shell command. Found GRUB entry was: "${windows_grub_entry}"`);
+      }
+
+      const proc = Gio.Subprocess.new(argv, Gio.SubprocessFlags.NONE);
+      await proc.wait_check_async(null);
+      this.proxy?.RebootRemote(true);    
+    } catch (e) {
       this.clearIntervals();
-      console.error(`RebootToWindows: Could not parse shell command. Found GRUB entry was: "${windows_grub_entry}"`);
+      console.error(`RebootToWindows Error:`, e);
       
+      // Zeigt einen Dialog an, anstatt das es im Hintergrund fehlschlägt
       const errorDialog = new ModalDialog.ModalDialog({ styleClass: 'modal-dialog' });
       const label = new St.Label({
-        text: _(`Error: The detected Windows GRUB entry ("${windows_grub_entry}") contains invalid characters or is empty. Reboot is not possible.`),
+        text: _(`Error: ${(e as Error).message || e}`),
       });
       label.clutterText.lineWrap = true;
       
@@ -171,12 +180,7 @@ export default class RebootToWindowsExtension extends Extension {
       ]);
       
       errorDialog.open();
-      return;
     }
-
-    const proc = Gio.Subprocess.new(argv, Gio.SubprocessFlags.NONE)
-    await proc.wait_check_async(null);
-    this.proxy?.RebootRemote(true);    
   }
 
   private buildDialog(): ModalDialog.ModalDialog {
