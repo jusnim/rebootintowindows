@@ -150,6 +150,30 @@ export default class RebootToWindowsExtension extends Extension {
   private async reboot(){
     let windows_grub_entry = this.get_windows_grub_entry(GRUB_CONFIG_PATH)
     const [, argv] = GLib.shell_parse_argv(`pkexec grub-reboot "${windows_grub_entry}"`)
+
+  if (!argv) {
+      this.clearIntervals();
+      console.error(`RebootToWindows: Could not parse shell command. Found GRUB entry was: "${windows_grub_entry}"`);
+      
+      const errorDialog = new ModalDialog.ModalDialog({ styleClass: 'modal-dialog' });
+      const label = new St.Label({
+        text: _(`Error: The detected Windows GRUB entry ("${windows_grub_entry}") contains invalid characters or is empty. Reboot is not possible.`),
+      });
+      label.clutterText.lineWrap = true;
+      
+      errorDialog.contentLayout.add_child(label);
+      errorDialog.setButtons([
+        {
+          label: _('OK'),
+          action: () => errorDialog.close(),
+          default: true,
+        },
+      ]);
+      
+      errorDialog.open();
+      return;
+    }
+
     const proc = Gio.Subprocess.new(argv, Gio.SubprocessFlags.NONE)
     await proc.wait_check_async(null);
     this.proxy?.RebootRemote(true);    
