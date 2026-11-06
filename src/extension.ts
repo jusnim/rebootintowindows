@@ -139,7 +139,7 @@ export default class RebootToWindowsExtension extends Extension {
 
     arr.forEach((line : string) => {
       let matches = menu_pattern.exec(line) 
-      if (matches != null && ! matches[1].toLowerCase().search("windows")){ 
+      if (matches != null && matches[1].toLowerCase().includes("windows")) {
           boot_entry = matches[1]
       }   
     }
