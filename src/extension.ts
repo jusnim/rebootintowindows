@@ -127,29 +127,43 @@ export default class RebootToWindowsExtension extends Extension {
     }
   }
 
-  private get_windows_grub_entry(file_path : string) {
-    const file = Gio.File.new_for_path(file_path);
-
-    let boot_entry = ""
-    let content = file.load_contents(null)[1]
-    const contentsText = new TextDecoder('utf-8').decode(content);
-    const arr = contentsText.split(/\r?\n/);
-
-    let menu_pattern = new RegExp("^\\s*menuentry ['\"]([^'\"]*)['\"]")
-
-    arr.forEach((line : string) => {
-      let matches = menu_pattern.exec(line) 
-      if (matches != null && matches[1].toLowerCase().includes("windows")) {
-          boot_entry = matches[1]
-      }   
+  private get_windows_grub_entry(file_path: string): string {
+  try {
+    const [, stdout, , status] = GLib.spawn_command_line_sync(`pkexec cat "${file_path}"`);
+    
+    if (status !== 0 || !stdout) {
+      return "";
     }
-    );
-    return boot_entry
+
+    const contentsText = new TextDecoder('utf-8').decode(stdout);
+    const arr = contentsText.split(/\r?\n/);
+    let boot_entry = "";
+    const menu_pattern = new RegExp("^\\s*menuentry ['\"]([^'\"]*)['\"]");
+
+    for (const line of arr) {
+      const matches = menu_pattern.exec(line);
+      if (matches != null && matches[1].toLowerCase().includes("windows")) {
+        boot_entry = matches[1];
+        break;
+      }
+    }
+    return boot_entry;
+  } catch (e) {
+    console.error(`RebootToWindows: Error reading ${file_path}`, e);
+    return "";
+  }
 }
 
-  private async reboot() {
+ private async reboot() {
     try {
       let windows_grub_entry = this.get_windows_grub_entry(GRUB_CONFIG_PATH);
+
+      if (!windows_grub_entry) {
+        throw new Error(
+          _('Windows GRUB entry not found. Please ensure os-prober is enabled and run sudo update-grub.')
+        );
+      }
+
       const [, argv] = GLib.shell_parse_argv(`pkexec grub-reboot "${windows_grub_entry}"`);
 
       if (!argv) {
@@ -163,7 +177,6 @@ export default class RebootToWindowsExtension extends Extension {
       this.clearIntervals();
       console.error(`RebootToWindows Error:`, e);
       
-      // Zeigt einen Dialog an, anstatt das es im Hintergrund fehlschlägt
       const errorDialog = new ModalDialog.ModalDialog({ styleClass: 'modal-dialog' });
       const label = new St.Label({
         text: _(`Error: ${(e as Error).message || e}`),
