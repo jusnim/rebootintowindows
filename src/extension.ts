@@ -54,9 +54,6 @@ export default class RebootToWindowsExtension extends Extension {
     this.menu =
       panel.statusArea.quickSettings?._system?.quickSettingsItems[0].menu;
 
-    // if(this.manager == null){
-    //   return
-    // }
     this.proxy = this.manager(
       Gio.DBus.system,
       'org.freedesktop.login1',
@@ -126,57 +123,32 @@ export default class RebootToWindowsExtension extends Extension {
       this.sourceId = null;
     }
   }
-
-  private get_windows_grub_entry(file_path: string): string {
-  try {
-    const [, stdout, , status] = GLib.spawn_command_line_sync(`pkexec cat "${file_path}"`);
-    
-    if (status !== 0 || !stdout) {
-      console.error(`RebootToWindows: Failed to read ${file_path} or file is empty.`);
-      return "";
-    }
-
-      const contentsText = new TextDecoder('utf-8').decode(stdout);
-      const arr = contentsText.split(/\r?\n/);
-      
-      for (const line of arr) {
-        const trimmed = line.trim();
-        if (trimmed.includes("menuentry") && trimmed.toLowerCase().includes("windows")) {
-          const firstQuote = trimmed.indexOf("'") !== -1 ? trimmed.indexOf("'") : trimmed.indexOf('"');
-          if (firstQuote !== -1) {
-            const secondQuote = trimmed.indexOf(trimmed[firstQuote], firstQuote + 1);
-            if (secondQuote !== -1) {
-              return trimmed.substring(firstQuote + 1, secondQuote);
-            }
-          }
-        }
-      }
-
-      return "";
-    } catch (e) {
-      console.error(`RebootToWindows: Error reading ${file_path}`, e);
-      return "";
-    }
-  }
-
- private async reboot() {
+private async reboot() {
     try {
-      let windows_grub_entry = this.get_windows_grub_entry(GRUB_CONFIG_PATH);
+      this.clearIntervals();
+    } catch (e) {
+      // ignore
+    }
 
-      if (!windows_grub_entry) {
-        throw new Error(
-          _('Windows GRUB entry not found. Please ensure os-prober is enabled and run sudo update-grub.')
-        );
-      }
+    try {
+      const script = `ENTRY=$(awk -F"['']" '/menuentry / && /Windows/ {print $2; exit}' "${GRUB_CONFIG_PATH}"); if [ -z "$ENTRY" ]; then exit 1; fi; grub-reboot "$ENTRY"`;
+      const proc = new Gio.Subprocess({
+        argv: ['pkexec', 'bash', '-c', script],
+        flags: Gio.SubprocessFlags.STDERR_PIPE,
+      });
+      proc.init(null);
 
-      const [, argv] = GLib.shell_parse_argv(`pkexec grub-reboot "${windows_grub_entry}"`);
+      await new Promise((resolve, reject) => {
+        proc.wait_check_async(null, (obj, res) => {
+          try {
+            obj?.wait_check_finish(res);
+            resolve(true);
+          } catch (e) {
+            reject(e);
+          }
+        });
+      });
 
-      if (!argv) {
-        throw new Error(`Could not parse shell command. Found GRUB entry was: "${windows_grub_entry}"`);
-      }
-
-      const proc = Gio.Subprocess.new(argv, Gio.SubprocessFlags.NONE);
-      await proc.wait_check_async(null);
       this.proxy?.RebootRemote(true);    
     } catch (e) {
       this.clearIntervals();
@@ -184,7 +156,7 @@ export default class RebootToWindowsExtension extends Extension {
       
       const errorDialog = new ModalDialog.ModalDialog({ styleClass: 'modal-dialog' });
       const label = new St.Label({
-        text: _(`Error: ${(e as Error).message || e}`),
+        text: _(`Error: Windows GRUB entry not found or authentication cancelled.`),
       });
       label.clutterText.lineWrap = true;
       
@@ -225,7 +197,6 @@ export default class RebootToWindowsExtension extends Extension {
 
     const dialogTitle = new St.Label({
       text: _('Restart into Windows'),
-      // style_class: 'dialog-title' // TODO investigate why css classes are not working
       style: 'font-weight: bold;font-size:18px',
     });
 
