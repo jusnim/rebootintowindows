@@ -1,5 +1,5 @@
 {
-  "name": "reboot-into-Windows",
+  "name": "reboot-into-windows",
   "version": "1.0.0",
   "description": "This is a small Gnome extension that adds the ability to reboot directly to the UEFI.",
   "type": "module",

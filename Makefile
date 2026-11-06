@@ -1,4 +1,4 @@
-NAME=rebootintoWindows
+NAME=rebootintowindows
 DOMAIN=nimz.cool
 BRANCH=$(shell git rev-parse --abbrev-ref HEAD)
 
