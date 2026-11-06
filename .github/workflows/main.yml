@@ -6,10 +6,10 @@ on:
     branches: ['main']
 
 env:
-  NAME: reboottouefi
+  NAME: rebootintowindows
   DOMAIN: ubaygd.com
   FILE_EXT: zip
-  RELEASE_PREFIX: RebootToUEFI
+  RELEASE_PREFIX: Reboot into Windows
 
 jobs:
   release:
@@ -22,7 +22,7 @@ jobs:
 
       - name: Get current date
         id: date
-        run: echo "::set-output name=date::$(date +'%Y-%m-%d')"
+        run: echo "date=$(date +'%Y-%m-%d')" >> "$GITHUB_OUTPUT"
 
       - name: Install gettext
         run: sudo apt-get install gettext
@@ -42,7 +42,7 @@ jobs:
         id: create_tag
         uses: actions/create-release@v1.1.4
         with:
-          tag_name: ${{ env.name }}-${{ steps.date.outputs.date }}
+          tag_name: ${{ env.NAME }}-${{ steps.date.outputs.date }}
           release_name: '${{ env.RELEASE_PREFIX }} ${{ steps.date.outputs.date }}'
           draft: false
           # prerelease: ${{ github.ref_name == 'dev' }}
