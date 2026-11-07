@@ -43,7 +43,6 @@ export default class RebootToWindowsExtension extends Extension {
   private messageIntervalId!: GLib.Source;
   private sourceId!: number | null;
   private manager!: any
-  private settings!: Gio.Settings | null;
 
   constructor(metadata: any) {
     super(metadata);
@@ -104,7 +103,6 @@ export default class RebootToWindowsExtension extends Extension {
   </interface>
   </node>`;
   this.manager = Gio.DBusProxy.makeProxyWrapper(ManagerInterface);
-  this.settings = this.getSettings();
     if (!panel.statusArea.quickSettings?._system) {
       this.queueModifySystemItem();
     } else {
@@ -114,7 +112,6 @@ export default class RebootToWindowsExtension extends Extension {
 
   disable() {
     this.manager = null
-    this.settings = null;
     this.clearIntervals();
     this.rebootToWindowsItem?.destroy();
     this.rebootToWindowsItem = null;
@@ -124,85 +121,73 @@ export default class RebootToWindowsExtension extends Extension {
       this.sourceId = null;
     }
   }
-private async reboot() {
-    try {
-      this.clearIntervals();
-    } catch (e) {
-      // ignore
-    }
 
+  private async reboot(){
     try {
-      // entry cached together with grub.cfg mtime --> pkexec cat only required if grub.cfg changed
-      const GRUB_CONFIG_PATH = '/boot/grub/grub.cfg';
-      const mtime = await this.getMtime(GRUB_CONFIG_PATH);
-      let entry = this.settings!.get_int64('grub-cfg-mtime') === mtime ? this.settings!.get_string('grub-entry') : '';
-      if (!entry) {
-        const grubConfig = await this.spawn(['pkexec', 'cat', GRUB_CONFIG_PATH]);
-        entry = grubConfig.match(/^\s*menuentry\s+['"]([^'"]*windows[^'"]*)['"]/im)?.[1] ?? '';
-        if (!entry) throw new Error('Windows GRUB entry not found');
-        this.settings!.set_string('grub-entry', entry);
-        this.settings!.set_int64('grub-cfg-mtime', mtime);
+      const GRUB_CONFIG_PATH = "/boot/grub/grub.cfg"
+      const file = Gio.File.new_for_path(GRUB_CONFIG_PATH)
+      const has_read_permission = file.query_info('access::can-read', Gio.FileQueryInfoFlags.NONE, null).get_attribute_boolean('access::can-read')
+
+      // read grub.cfg to find the Windows GRUB entry
+      let content: Uint8Array
+      if (has_read_permission) {
+        content = file.load_contents(null)[1]
+      } else {
+        // grub.cfg only readable by root on some distros (0600) --> pkexec
+        const cat_process = Gio.Subprocess.new(['pkexec', 'cat', GRUB_CONFIG_PATH], Gio.SubprocessFlags.STDOUT_PIPE)
+        Gio._promisify(Gio.Subprocess.prototype, 'communicate_async');
+        const [stdout] = await cat_process.communicate_async(null, null)
+        if (!cat_process.get_successful()) throw new Error('Reading grub.cfg failed')
+        content = stdout!.toArray()
       }
-      await this.spawn(['pkexec', 'grub-reboot', entry]);
 
+      // find the Windows GRUB entry in the grub.cfg content
+      let boot_entry = ""
+      const contentsText = new TextDecoder('utf-8').decode(content);
+      const arr = contentsText.split(/\r?\n/);
+
+      let menu_pattern = new RegExp("^\\s*menuentry ['\"]([^'\"]*)['\"]")
+
+      arr.forEach((line : string) => {
+        let matches = menu_pattern.exec(line)
+        if (matches != null && ! matches[1].toLowerCase().search("windows")){
+          boot_entry = matches[1]
+        }
+      }
+     );
+      if (!boot_entry) throw new Error('Windows GRUB entry not found')
+
+      const [, argv] = GLib.shell_parse_argv(`pkexec grub-reboot "${boot_entry}"`)
+      if (!argv) throw new Error(`Could not parse command for GRUB entry "${boot_entry}"`)
+      const proc = Gio.Subprocess.new(argv, Gio.SubprocessFlags.NONE)
+      await proc.wait_check_async(null);
       this.proxy?.RebootRemote(true);
+
     } catch (e) {
-      this.clearIntervals();
-      console.error(`RebootToWindows Error:`, e);
-      
-      const errorDialog = new ModalDialog.ModalDialog({ styleClass: 'modal-dialog' });
-      const label = new St.Label({
-        text: _(`Error: Windows GRUB entry not found or authentication cancelled.`),
-      });
-      label.clutterText.lineWrap = true;
-      
-      errorDialog.contentLayout.add_child(label);
-      errorDialog.setButtons([
-        {
-          label: _('OK'),
-          action: () => errorDialog.close(),
-          default: true,
-        },
-      ]);
-      
-      errorDialog.open();
+      this.handleRebootError(e);
     }
   }
 
-  // reading mtime needs access to the parent directory only
-  private getMtime(path: string): Promise<number> {
-    return new Promise((resolve, reject) => {
-      Gio.File.new_for_path(path).query_info_async(
-        Gio.FILE_ATTRIBUTE_TIME_MODIFIED,
-        Gio.FileQueryInfoFlags.NONE,
-        GLib.PRIORITY_DEFAULT,
-        null,
-        (obj, res) => {
-          try {
-            resolve(obj!.query_info_finish(res).get_attribute_uint64(Gio.FILE_ATTRIBUTE_TIME_MODIFIED));
-          } catch (e) {
-            reject(e);
-          }
-        },
-      );
-    });
-  }
+  private handleRebootError(e: unknown): void {
+    this.clearIntervals();
+    console.error(`RebootToWindows Error:`, e);
 
-  private spawn(argv: string[]): Promise<string> {
-    const proc = new Gio.Subprocess({ argv, flags: Gio.SubprocessFlags.STDOUT_PIPE });
-    proc.init(null);
-
-    return new Promise((resolve, reject) => {
-      proc.communicate_utf8_async(null, null, (obj, res) => {
-        try {
-          const [, stdout] = obj!.communicate_utf8_finish(res);
-          if (!obj!.get_successful()) throw new Error(`${argv.join(' ')} failed`);
-          resolve(stdout ?? '');
-        } catch (e) {
-          reject(e);
-        }
-      });
+    const errorDialog = new ModalDialog.ModalDialog({ styleClass: 'modal-dialog' });
+    const label = new St.Label({
+      text: _(`Error: Windows GRUB entry not found or authentication cancelled.`),
     });
+    label.clutterText.lineWrap = true;
+
+    errorDialog.contentLayout.add_child(label);
+    errorDialog.setButtons([
+      {
+        label: _('OK'),
+        action: () => errorDialog.close(),
+        default: true,
+      },
+    ]);
+
+    errorDialog.open();
   }
 
   private buildDialog(): ModalDialog.ModalDialog {
