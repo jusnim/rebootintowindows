@@ -1,6 +1,6 @@
 .build/
 dist/
 node_modules/
-rebootintoWindows@nimz.cool.shell-extension.zip
-rebootintoWindows@nimz.cool-*.zip
-rebootintoWindows@nimz.cool.zip
+rebootintowindows@nimz.cool.shell-extension.zip
+rebootintowindows@nimz.cool-*.zip
+rebootintowindows@nimz.cool.zip
