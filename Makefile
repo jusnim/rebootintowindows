@@ -20,6 +20,7 @@ compile-po: po/*.po
 
 $(NAME)@$(DOMAIN).zip: dist/extension.js
 	@cp src/metadata.json dist/
+	@cp -r src/schemas dist/
 	@$(MAKE) compile-po
 	@(cd dist && zip ../$(NAME)@$(DOMAIN)-$(shell date +%Y%m%d)$(if $(filter dev,$(BRANCH)),-$(BRANCH)).zip -9r .)
 

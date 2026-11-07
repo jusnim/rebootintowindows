@@ -5,5 +5,6 @@
   "uuid": "rebootintowindows@nimz.cool",
   "url": "https://github.com/jusnim/rebootintowindows",
   "shell-version": ["45", "46", "47", "48", "49", "50"],
-  "gettext-domain": "rebootintowindows@nimz.cool"
+  "gettext-domain": "rebootintowindows@nimz.cool",
+  "settings-schema": "org.gnome.shell.extensions.rebootintowindows"
 }

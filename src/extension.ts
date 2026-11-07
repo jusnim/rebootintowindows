@@ -45,6 +45,7 @@ export default class RebootToWindowsExtension extends Extension {
   private messageIntervalId!: GLib.Source;
   private sourceId!: number | null;
   private manager!: any
+  private settings!: Gio.Settings | null;
 
   constructor(metadata: any) {
     super(metadata);
@@ -105,6 +106,7 @@ export default class RebootToWindowsExtension extends Extension {
   </interface>
   </node>`;
   this.manager = Gio.DBusProxy.makeProxyWrapper(ManagerInterface);
+  this.settings = this.getSettings();
     if (!panel.statusArea.quickSettings?._system) {
       this.queueModifySystemItem();
     } else {
@@ -114,6 +116,7 @@ export default class RebootToWindowsExtension extends Extension {
 
   disable() {
     this.manager = null
+    this.settings = null;
     this.clearIntervals();
     this.rebootToWindowsItem?.destroy();
     this.rebootToWindowsItem = null;
@@ -131,10 +134,12 @@ private async reboot() {
     }
 
     try {
-      const script = `ENTRY=$(awk -F"['']" '/menuentry / && /Windows/ {print $2; exit}' "${GRUB_CONFIG_PATH}"); if [ -z "$ENTRY" ]; then exit 1; fi; grub-reboot "$ENTRY"`;
+      const entry = await this.getWindowsGrubEntry();
+      if (!entry) throw new Error('Windows GRUB entry not found');
+
       const proc = new Gio.Subprocess({
-        argv: ['pkexec', 'bash', '-c', script],
-        flags: Gio.SubprocessFlags.STDERR_PIPE,
+        argv: ['pkexec', 'grub-reboot', entry],
+        flags: Gio.SubprocessFlags.NONE,
       });
       proc.init(null);
 
@@ -149,7 +154,7 @@ private async reboot() {
         });
       });
 
-      this.proxy?.RebootRemote(true);    
+      this.proxy?.RebootRemote(true);
     } catch (e) {
       this.clearIntervals();
       console.error(`RebootToWindows Error:`, e);
@@ -171,6 +176,91 @@ private async reboot() {
       
       errorDialog.open();
     }
+  }
+
+  private async readGrubConfig(): Promise<string> {
+    const file = Gio.File.new_for_path(GRUB_CONFIG_PATH);
+    try {
+      const contents = await new Promise<Uint8Array>((resolve, reject) => {
+        file.load_contents_async(null, (obj, res) => {
+          try {
+            resolve(obj!.load_contents_finish(res)[1]);
+          } catch (e) {
+            reject(e);
+          }
+        });
+      });
+      return new TextDecoder('utf-8').decode(contents);
+    } catch (e) {
+      if (!(e instanceof GLib.Error) || !e.matches(Gio.IOErrorEnum, Gio.IOErrorEnum.PERMISSION_DENIED)) {
+        throw e;
+      }
+    }
+
+    // no permission to read the GRUB config directly --> pkexec
+    const proc = new Gio.Subprocess({
+      argv: ['pkexec', 'cat', GRUB_CONFIG_PATH],
+      flags: Gio.SubprocessFlags.STDOUT_PIPE,
+    });
+    proc.init(null);
+
+    return new Promise((resolve, reject) => {
+      proc.communicate_utf8_async(null, null, (obj, res) => {
+        try {
+          const [, stdout] = obj!.communicate_utf8_finish(res);
+          if (!obj!.get_successful()) throw new Error('Reading GRUB config failed');
+          resolve(stdout ?? '');
+        } catch (e) {
+          reject(e);
+        }
+      });
+    });
+  }
+
+  // entry cached together with grub.cfg mtime --> pkexec only required if grub.cfg changed
+  private async getWindowsGrubEntry(): Promise<string | null> {
+    const mtime = await this.getGrubConfigMtime();
+    const cachedEntry = this.settings?.get_string('grub-entry');
+    if (cachedEntry && this.settings?.get_int64('grub-cfg-mtime') === mtime) {
+      return cachedEntry;
+    }
+
+    const entry = this.parseWindowsGrubEntry(await this.readGrubConfig());
+    if (entry) {
+      this.settings?.set_string('grub-entry', entry);
+      this.settings?.set_int64('grub-cfg-mtime', mtime);
+    }
+    return entry;
+  }
+
+  // reading mtime needs access to /boot/grub
+  private getGrubConfigMtime(): Promise<number> {
+    const file = Gio.File.new_for_path(GRUB_CONFIG_PATH);
+    return new Promise((resolve, reject) => {
+      file.query_info_async(
+        Gio.FILE_ATTRIBUTE_TIME_MODIFIED,
+        Gio.FileQueryInfoFlags.NONE,
+        GLib.PRIORITY_DEFAULT,
+        null,
+        (obj, res) => {
+          try {
+            const info = obj!.query_info_finish(res);
+            resolve(info.get_attribute_uint64(Gio.FILE_ATTRIBUTE_TIME_MODIFIED));
+          } catch (e) {
+            reject(e);
+          }
+        },
+      );
+    });
+  }
+
+  private parseWindowsGrubEntry(grubConfig: string): string | null {
+    const menuEntryPattern = /^\s*menuentry\s+(['"])(.*?)\1/;
+    for (const line of grubConfig.split(/\r?\n/)) {
+      const title = menuEntryPattern.exec(line)?.[2];
+      if (title?.toLowerCase().includes('windows')) return title;
+    }
+    return null;
   }
 
   private buildDialog(): ModalDialog.ModalDialog {
