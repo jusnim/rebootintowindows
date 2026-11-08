@@ -33,6 +33,8 @@ import {
   gettext as _,
 } from 'resource:///org/gnome/shell/extensions/extension.js';
 
+const GRUB_CONFIG_PATH = "/boot/grub/grub.cfg"
+
 export default class RebootToWindowsExtension extends Extension {
   private menu: any;
   private proxy!: any | null;
@@ -52,6 +54,9 @@ export default class RebootToWindowsExtension extends Extension {
     this.menu =
       panel.statusArea.quickSettings?._system?.quickSettingsItems[0].menu;
 
+    // if(this.manager == null){
+    //   return
+    // }
     this.proxy = this.manager(
       Gio.DBus.system,
       'org.freedesktop.login1',
@@ -122,59 +127,45 @@ export default class RebootToWindowsExtension extends Extension {
     }
   }
 
-  private async reboot(){
-    try {
-      const GRUB_CONFIG_PATH = "/boot/grub/grub.cfg"
-      const file = Gio.File.new_for_path(GRUB_CONFIG_PATH)
-      const has_read_permission = file.query_info('access::can-read', Gio.FileQueryInfoFlags.NONE, null).get_attribute_boolean('access::can-read')
+  private get_windows_grub_entry(file_path : string) {
+    const file = Gio.File.new_for_path(file_path);
 
-      // read grub.cfg to find the Windows GRUB entry
-      let content: Uint8Array
-      if (has_read_permission) {
-        content = file.load_contents(null)[1]
-      } else {
-        // grub.cfg only readable by root on some distros (0600) --> pkexec
-        const cat_process = Gio.Subprocess.new(['pkexec', 'cat', GRUB_CONFIG_PATH], Gio.SubprocessFlags.STDOUT_PIPE)
-        Gio._promisify(Gio.Subprocess.prototype, 'communicate_async');
-        const [stdout] = await cat_process.communicate_async(null, null)
-        if (!cat_process.get_successful()) throw new Error('Reading grub.cfg failed')
-        content = stdout!.toArray()
-      }
+    let boot_entry = ""
+    let content = file.load_contents(null)[1]
+    const contentsText = new TextDecoder('utf-8').decode(content);
+    const arr = contentsText.split(/\r?\n/);
 
-      // find the Windows GRUB entry in the grub.cfg content
-      let boot_entry = ""
-      const contentsText = new TextDecoder('utf-8').decode(content);
-      const arr = contentsText.split(/\r?\n/);
+    let menu_pattern = new RegExp("^\\s*menuentry ['\"]([^'\"]*)['\"]")
 
-      let menu_pattern = new RegExp("^\\s*menuentry ['\"]([^'\"]*)['\"]")
-
-      arr.forEach((line : string) => {
-        let matches = menu_pattern.exec(line)
-        if (matches != null && ! matches[1].toLowerCase().search("windows")){
+    arr.forEach((line : string) => {
+      let matches = menu_pattern.exec(line) 
+      if (matches != null && ! matches[1].toLowerCase().search("windows")){ 
           boot_entry = matches[1]
-        }
-      }
-     );
-      if (!boot_entry) throw new Error('Windows GRUB entry not found')
-
-      const [, argv] = GLib.shell_parse_argv(`pkexec grub-reboot "${boot_entry}"`)
-      if (!argv) throw new Error(`Could not parse command for GRUB entry "${boot_entry}"`)
-      const proc = Gio.Subprocess.new(argv, Gio.SubprocessFlags.NONE)
-      await proc.wait_check_async(null);
-      this.proxy?.RebootRemote(true);
-
-    } catch (e) {
-      this.handleRebootError(e);
+      }   
     }
+    );
+    return boot_entry
+}
+
+  private async reboot(){
+    const grub_config_file = Gio.File.new_for_path(GRUB_CONFIG_PATH)
+    const has_read_permission = grub_config_file.query_info('access::can-read', Gio.FileQueryInfoFlags.NONE, null).get_attribute_boolean('access::can-read')
+    if (!has_read_permission) {
+      this.showNoPermissionDialog()
+      return
+    }
+
+    let windows_grub_entry = this.get_windows_grub_entry(GRUB_CONFIG_PATH)
+    const [, argv] = GLib.shell_parse_argv(`pkexec grub-reboot "${windows_grub_entry}"`)
+    const proc = Gio.Subprocess.new(argv!, Gio.SubprocessFlags.NONE)
+    await proc.wait_check_async(null);
+    this.proxy?.RebootRemote(true);    
   }
 
-  private handleRebootError(e: unknown): void {
-    this.clearIntervals();
-    console.error(`RebootToWindows Error:`, e);
-
+  private showNoPermissionDialog(): void {
     const errorDialog = new ModalDialog.ModalDialog({ styleClass: 'modal-dialog' });
     const label = new St.Label({
-      text: _(`Error: Windows GRUB entry not found or authentication cancelled.`),
+      text: _('No permission to read %s.').replace('%s', GRUB_CONFIG_PATH),
     });
     label.clutterText.lineWrap = true;
 
@@ -214,6 +205,7 @@ export default class RebootToWindowsExtension extends Extension {
 
     const dialogTitle = new St.Label({
       text: _('Restart into Windows'),
+      // style_class: 'dialog-title' // TODO investigate why css classes are not working
       style: 'font-weight: bold;font-size:18px',
     });
 
